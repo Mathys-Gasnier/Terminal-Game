@@ -5,7 +5,8 @@ use std::fmt::Display;
 pub enum Token {
     Keyword(String),
     OpenParen,
-    CloseParen
+    CloseParen,
+    Dot
 }
 
 impl Token {
@@ -13,7 +14,8 @@ impl Token {
         match self {
             Token::Keyword(keyword) => keyword.clone(),
             Token::OpenParen => "(".to_string(),
-            Token::CloseParen => ")".to_string()
+            Token::CloseParen => ")".to_string(),
+            Token::Dot => ".".to_string()
         }
     }
 }
@@ -77,6 +79,8 @@ impl Lexer {
                 tokens.push(Token::OpenParen);
             }else if char == ')' {
                 tokens.push(Token::CloseParen);
+            }else if char == '.' {
+                tokens.push(Token::Dot);
             }else {
                 return Err(LexerError::Unknown(self.pointer - 1, char));
             }

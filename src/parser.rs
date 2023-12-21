@@ -4,6 +4,7 @@ use crate::lexer::Token;
 
 #[derive(Debug)]
 pub enum Instruction {
+    Access(String, Box<Instruction>),
     FunctionCall(String)
 }
 
@@ -61,15 +62,22 @@ impl Parser {
         let token = self.consume().ok_or(ParserError::ExpectedToken)?;
         match token {
             Token::Keyword(keyword) => {
-                if let Some(Token::OpenParen) = self.peek() {
-                    self.pointer += 1;
-                    if let Some(Token::CloseParen) = self.peek() {
-                    }else {
-                        return Err(ParserError::Expected(Token::CloseParen, self.peek()));
-                    }
-                    return Ok(Instruction::FunctionCall(keyword));
+                match self.peek() {
+                    Some(Token::OpenParen) => {
+                        self.pointer += 1;
+                        if let Some(Token::CloseParen) = self.peek() {
+                        }else {
+                            return Err(ParserError::Expected(Token::CloseParen, self.peek()));
+                        }
+                        self.pointer += 1;
+                        Ok(Instruction::FunctionCall(keyword))
+                    },
+                    Some(Token::Dot) => {
+                        self.pointer += 1;
+                        Ok(Instruction::Access(keyword, Box::new(self.parse_instruction()?)))
+                    },
+                    _ => Err(ParserError::UnexpectedToken(self.peek()))
                 }
-                Err(ParserError::UnexpectedToken(self.peek()))
             },
             _ => Err(ParserError::UnexpectedToken(Some(token)))
         }
