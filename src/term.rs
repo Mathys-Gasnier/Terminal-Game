@@ -6,11 +6,11 @@ use std::{
 use crossterm::{
     QueueableCommand,
     ExecutableCommand,
-    cursor::{ self, position },
-    terminal::{ self, enable_raw_mode, disable_raw_mode, size },
+    cursor,
+    terminal::{ self, enable_raw_mode, disable_raw_mode },
     event::{
         read, poll,
-        Event, EnableMouseCapture, DisableMouseCapture, KeyCode, self, MouseButton
+        Event, EnableMouseCapture, DisableMouseCapture
     },
     style
 };
@@ -21,16 +21,14 @@ pub enum WrapMode {
 }
 
 pub struct Term {
-    stdout: io::Stdout,
-    event: Option<Event>
+    stdout: io::Stdout
 }
 
 impl Term {
 
     pub fn new() -> io::Result<Self> {
         let mut term = Self {
-            stdout: io::stdout(),
-            event: None
+            stdout: io::stdout()
         };
 
         term.enable()?;
