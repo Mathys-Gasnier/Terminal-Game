@@ -4,31 +4,37 @@ use std::fmt::Display;
 #[derive(Debug, Clone)]
 pub enum Token {
     Keyword(String),
+    Int(i32),
     OpenParen,
     CloseParen,
-    Dot
+    Dot,
+    Coma
 }
 
 impl Token {
     pub fn text(&self) -> String {
         match self {
             Token::Keyword(keyword) => keyword.clone(),
+            Token::Int(int) => int.to_string(),
             Token::OpenParen => "(".to_string(),
             Token::CloseParen => ")".to_string(),
-            Token::Dot => ".".to_string()
+            Token::Dot => ".".to_string(),
+            Token::Coma => ",".to_string()
         }
     }
 }
 
 #[derive(Debug)]
 pub enum LexerError {
-    Unknown(u16, char)
+    Unknown(u16, char),
+    NumberParseError(u16, String)
 }
 
 impl Display for LexerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LexerError::Unknown(idx, char) => write!(f, "Unexpected char '{}' at {}", char, idx)
+            LexerError::Unknown(idx, char) => write!(f, "Unexpected char '{}' at {}", char, idx),
+            LexerError::NumberParseError(idx, number) => write!(f, "Number '{}' failed to parse at {}", number, idx)
         }
     }
 }
@@ -75,12 +81,27 @@ impl Lexer {
                     buffer.push(char);
                 }
                 tokens.push(Token::Keyword(buffer));
+            }else if char.is_ascii_digit() || char == '-' {
+                let number_start = self.pointer - 1;
+                let mut buffer = String::from(char);
+                while let Some(char) = self.peek() {
+                    if !char.is_numeric() && char != '_' {
+                        break;
+                    }
+                    self.pointer += 1;
+                    buffer.push(char);
+                }
+                let int = buffer.parse::<i32>().map_err(|_| LexerError::NumberParseError(number_start, buffer))?;
+                tokens.push(Token::Int(int));
+
             }else if char == '(' {
                 tokens.push(Token::OpenParen);
             }else if char == ')' {
                 tokens.push(Token::CloseParen);
             }else if char == '.' {
                 tokens.push(Token::Dot);
+            }else if char == ',' {
+                tokens.push(Token::Coma);
             }else {
                 return Err(LexerError::Unknown(self.pointer - 1, char));
             }

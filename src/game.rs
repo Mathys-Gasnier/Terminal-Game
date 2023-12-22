@@ -1,7 +1,53 @@
-use std::{io, cmp};
+use std::{io, cmp, collections::HashMap};
 use crossterm::{event::{Event, KeyEvent, KeyCode, MouseEvent, MouseEventKind}, terminal::size};
-use crate::{term::{Term, WrapMode}, lexer::Lexer, parser::Parser};
+use crate::{term::{Term, WrapMode}, lexer::Lexer, parser::{Parser, Instruction, Arg}};
 
+#[derive(Debug, Clone)]
+pub enum Value {
+    Null,
+    IntValue(i32),
+    BoolValue(bool),
+    Function(fn(args: Vec<Arg>) -> Option<Value>),
+    Object(HashMap<String, Value>)
+}
+
+impl Value {
+
+    fn create_root() -> Self {
+        Value::Object(HashMap::from([
+            ("test".to_string(), Value::IntValue(10)),
+            ("func".to_string(), Value::Function(|_| Some(Value::IntValue(6)))),
+            ("ff".to_string(), Value::Function(|args| args.get(0).map(|arg| {
+                match arg {
+                    Arg::Int(int) => Value::IntValue(int.clone()),
+                    _ => Value::Null
+                }
+            })))
+        ]))
+    }
+
+    fn handle(&self, instruction: Instruction) -> Option<Value> {
+        match (self, instruction) {
+            (Value::Object(map), Instruction::Access(access, more)) => {
+                let child = map.get(&access);
+                if let Some(Value::Object(..)) = child {
+                    return child.unwrap().handle(*more);
+                }
+                None
+            },
+            (Value::Object(map), Instruction::Identifier(indt)) => map.get(&indt).cloned(),
+            (Value::Object(map), Instruction::FunctionCall(f_name, args)) => {
+                let child = map.get(&f_name);
+                if let Some(Value::Function(f)) = child {
+                    return f(args);
+                }
+                None
+            },
+            _ => Some(self.clone())
+        }
+    }
+
+}
 
 pub struct Game {
     term: Term,
@@ -9,7 +55,8 @@ pub struct Game {
     line_buffer: Vec<String>,
     cursor_offset: u16,
     scroll_offset: u16,
-    event: Option<Event>
+    event: Option<Event>,
+    root: Value
 }
 
 impl Game {
@@ -21,7 +68,8 @@ impl Game {
             line_buffer: vec![],
             cursor_offset: 0,
             scroll_offset: 0,
-            event: None
+            event: None,
+            root: Value::create_root()
         })
     }
 
@@ -95,7 +143,7 @@ impl Game {
             return;
         }
         self.line_buffer.push(format!("{:?}", instruction));
-        
+        self.line_buffer.push(format!("{:?}", self.root.handle(instruction.unwrap())));
         
     }
 

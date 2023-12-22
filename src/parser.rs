@@ -3,10 +3,15 @@ use std::fmt::Display;
 use crate::lexer::Token;
 
 #[derive(Debug)]
+pub enum Arg {
+    Int(i32)
+}
+
+#[derive(Debug)]
 pub enum Instruction {
     Access(String, Box<Instruction>),
     Identifier(String),
-    FunctionCall(String)
+    FunctionCall(String, Vec<Arg>)
 }
 
 #[derive(Debug)]
@@ -66,12 +71,29 @@ impl Parser {
                 match self.peek() {
                     Some(Token::OpenParen) => {
                         self.pointer += 1;
+                        let mut args: Vec<Arg> = vec![];
+                        while let Some(token) = self.peek() {
+                            if let Token::CloseParen = token {
+                                break;
+                            }
+                            self.pointer += 1;
+                            let arg = match token {
+                                Token::Int(int) => Ok(Arg::Int(int)),
+                                _ => Err(ParserError::UnexpectedToken(Some(token)))
+                            }?;
+                            args.push(arg);
+                            if let Some(Token::Coma) = self.peek() {
+                            }else {
+                                break;
+                            }
+                            self.pointer += 1;
+                        }
                         if let Some(Token::CloseParen) = self.peek() {
                         }else {
                             return Err(ParserError::Expected(Token::CloseParen, self.peek()));
                         }
                         self.pointer += 1;
-                        Ok(Instruction::FunctionCall(keyword))
+                        Ok(Instruction::FunctionCall(keyword, args))
                     },
                     Some(Token::Dot) => {
                         self.pointer += 1;
