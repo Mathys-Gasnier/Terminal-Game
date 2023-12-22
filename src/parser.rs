@@ -5,6 +5,7 @@ use crate::lexer::Token;
 #[derive(Debug)]
 pub enum Instruction {
     Access(String, Box<Instruction>),
+    Identifier(String),
     FunctionCall(String)
 }
 
@@ -76,6 +77,7 @@ impl Parser {
                         self.pointer += 1;
                         Ok(Instruction::Access(keyword, Box::new(self.parse_instruction()?)))
                     },
+                    None => Ok(Instruction::Identifier(keyword)),
                     _ => Err(ParserError::UnexpectedToken(self.peek()))
                 }
             },
