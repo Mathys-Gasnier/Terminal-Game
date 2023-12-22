@@ -22,7 +22,10 @@ impl Value {
                     Arg::Int(int) => Value::IntValue(int.clone()),
                     _ => Value::Null
                 }
-            })))
+            }))),
+            ("nest".to_string(), Value::Object(HashMap::from([
+                ("thing".to_string(), Value::BoolValue(false))
+            ])))
         ]))
     }
 
@@ -30,18 +33,18 @@ impl Value {
         match (self, instruction) {
             (Value::Object(map), Instruction::Access(access, more)) => {
                 let child = map.get(&access);
-                if let Some(Value::Object(..)) = child {
-                    return child.unwrap().handle(*more);
-                }
-                None
+                let Some(Value::Object(..)) = child else {
+                    return None;
+                };
+                return child.unwrap().handle(*more);
             },
             (Value::Object(map), Instruction::Identifier(indt)) => map.get(&indt).cloned(),
             (Value::Object(map), Instruction::FunctionCall(f_name, args)) => {
                 let child = map.get(&f_name);
-                if let Some(Value::Function(f)) = child {
-                    return f(args);
-                }
-                None
+                let Some(Value::Function(f)) = child else {
+                    return None;
+                };
+                f(args)
             },
             _ => Some(self.clone())
         }
@@ -132,26 +135,32 @@ impl Game {
         self.line_buffer.push(format!("~ {}", command));
         self.command_buffer.clear();
 
-        let tokens = Lexer::tokenize(&command);
-        if tokens.is_err() {
-            self.line_buffer.push(format!("{}", tokens.unwrap_err()));
-            return;
-        }
-        let instruction = Parser::parse(tokens.unwrap());
-        if instruction.is_err() {
-            self.line_buffer.push(format!("{}", instruction.unwrap_err()));
-            return;
-        }
+        let tokens = match Lexer::tokenize(&command) {
+            Ok(ok) => ok,
+            Err(err) => {
+                self.line_buffer.push(format!("{}", err));
+                return;
+            }
+        };
+
+        let instruction = match Parser::parse(tokens) {
+            Ok(ok) => ok,
+            Err(err) => {
+                self.line_buffer.push(format!("{}", err));
+                return;
+            }
+        };
+
         self.line_buffer.push(format!("{:?}", instruction));
-        self.line_buffer.push(format!("{:?}", self.root.handle(instruction.unwrap())));
+        self.line_buffer.push(format!("{:?}", self.root.handle(instruction)));
         
     }
 
     pub fn update(&mut self) -> io::Result<bool> {
         self.event = self.term.poll_event()?;
 
-        if let Some(Event::Key(KeyEvent { code, .. })) = &self.event {
-            match code {
+        match self.event {
+            Some(Event::Key(KeyEvent { code, .. })) => match code {
                 KeyCode::Esc => return Ok(true),
                 KeyCode::Left => self.cursor_left(),
                 KeyCode::Right => self.cursor_right(),
@@ -160,13 +169,13 @@ impl Game {
                 KeyCode::Delete => self.remove_char_at(),
                 KeyCode::Enter => self.submit_command(),
                 _ => ()
-            }
-        }else if let Some(Event::Mouse(MouseEvent { kind, .. })) = &self.event {
-            match kind {
+            },
+            Some(Event::Mouse(MouseEvent { kind, .. })) => match kind {
                 MouseEventKind::ScrollUp => self.scroll_up(),
                 MouseEventKind::ScrollDown => self.scroll_down(),
                 _ => ()
-            }
+            },
+            _ => ()
         }
 
         Ok(false)

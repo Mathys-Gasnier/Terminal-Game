@@ -82,16 +82,14 @@ impl Parser {
                                 _ => Err(ParserError::UnexpectedToken(Some(token)))
                             }?;
                             args.push(arg);
-                            if let Some(Token::Coma) = self.peek() {
-                            }else {
+                            let Some(Token::Coma) = self.peek() else {
                                 break;
-                            }
+                            };
                             self.pointer += 1;
                         }
-                        if let Some(Token::CloseParen) = self.peek() {
-                        }else {
+                        let Some(Token::CloseParen) = self.peek() else {
                             return Err(ParserError::Expected(Token::CloseParen, self.peek()));
-                        }
+                        };
                         self.pointer += 1;
                         Ok(Instruction::FunctionCall(keyword, args))
                     },
