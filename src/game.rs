@@ -7,12 +7,23 @@ use crossterm::{
     event::{Event, KeyCode, KeyEvent, MouseEvent, MouseEventKind},
     terminal::size,
 };
-use std::{cmp, io};
+use std::{cmp, fmt::Display, io};
 
 #[derive(Debug, Clone)]
 pub enum HandleError {
-    WrongArgType,
-    NotFound,
+    WrongArgType(String, String),
+    NotFound(String),
+}
+
+impl Display for HandleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::WrongArgType(expected, got) => {
+                write!(f, "Expected argument of type '{}' got '{}'", expected, got)
+            }
+            Self::NotFound(str) => write!(f, "{}", str),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -20,6 +31,16 @@ pub enum Value {
     Null,
     IntValue(i64),
     BoolValue(bool),
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Null => write!(f, "Null"),
+            Self::IntValue(int) => write!(f, "{}", int),
+            Self::BoolValue(bool) => write!(f, "{}", bool),
+        }
+    }
 }
 
 trait GameObject {
@@ -47,7 +68,7 @@ impl GameObject for Root {
                 self.coins += 1;
                 Ok(Value::IntValue(self.coins))
             }
-            _ => Err(HandleError::NotFound),
+            _ => Err(HandleError::NotFound(format!("Did not find on Root"))),
         }
     }
 }
@@ -157,9 +178,15 @@ impl Game {
             }
         };
 
-        self.line_buffer.push(format!("{:?}", instruction));
-        let result = self.root.handle(instruction);
-        self.line_buffer.push(format!("{:?}", result));
+        let result = match self.root.handle(instruction) {
+            Ok(ok) => ok,
+            Err(err) => {
+                self.line_buffer.push(format!("{}", err));
+                return;
+            }
+        };
+
+        self.line_buffer.push(format!("{}", result));
     }
 
     pub fn update(&mut self) -> io::Result<bool> {
