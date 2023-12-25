@@ -1,57 +1,58 @@
-use std::{io, cmp, collections::HashMap};
-use crossterm::{event::{Event, KeyEvent, KeyCode, MouseEvent, MouseEventKind}, terminal::size};
-use crate::{term::{Term, WrapMode}, lexer::Lexer, parser::{Parser, Instruction, Arg}};
+use crate::{
+    lexer::Lexer,
+    parser::{Instruction, Parser},
+    term::{Term, WrapMode},
+};
+use crossterm::{
+    event::{Event, KeyCode, KeyEvent, MouseEvent, MouseEventKind},
+    terminal::size,
+};
+use std::{cmp, io};
+
+#[derive(Debug, Clone)]
+pub enum HandleError {
+    WrongArgType,
+    NotFound,
+}
 
 #[derive(Debug, Clone)]
 pub enum Value {
     Null,
-    IntValue(i32),
+    IntValue(i64),
     BoolValue(bool),
-    Function(fn(args: Vec<Arg>) -> Option<Value>),
-    Object(HashMap<String, Value>)
 }
 
-impl Value {
+trait GameObject {
+    fn handle(&mut self, instruction: Instruction) -> Result<Value, HandleError>;
+}
 
-    fn create_root() -> Self {
-        Value::Object(HashMap::from([
-            ("test".to_string(), Value::IntValue(10)),
-            ("func".to_string(), Value::Function(|_| Some(Value::IntValue(6)))),
-            ("ff".to_string(), Value::Function(|args| args.get(0).map(|arg| {
-                match arg {
-                    Arg::Int(int) => Value::IntValue(int.clone()),
-                    _ => Value::Null
-                }
-            }))),
-            ("nest".to_string(), Value::Object(HashMap::from([
-                ("thing".to_string(), Value::BoolValue(false))
-            ])))
-        ]))
+#[derive(Clone)]
+pub struct Root {
+    coins: i64,
+}
+
+impl Root {
+    fn new() -> Self {
+        Self { coins: 0 }
     }
+}
 
-    fn handle(&self, instruction: Instruction) -> Option<Value> {
-        match (self, instruction) {
-            (Value::Object(map), Instruction::Access(access, more)) => {
-                let child = map.get(&access);
-                let Some(Value::Object(..)) = child else {
-                    return None;
-                };
-                return child.unwrap().handle(*more);
-            },
-            (Value::Object(map), Instruction::Identifier(indt)) => map.get(&indt).cloned(),
-            (Value::Object(map), Instruction::FunctionCall(f_name, args)) => {
-                let child = map.get(&f_name);
-                let Some(Value::Function(f)) = child else {
-                    return None;
-                };
-                f(args)
-            },
-            _ => Some(self.clone())
+impl GameObject for Root {
+    fn handle(&mut self, instruction: Instruction) -> Result<Value, HandleError> {
+        match instruction {
+            Instruction::Access(key, _) if key == "coins".to_string() => {
+                Ok(Value::IntValue(self.coins))
+            }
+            Instruction::FunctionCall(name, _) if name == "add".to_string() => {
+                self.coins += 1;
+                Ok(Value::IntValue(self.coins))
+            }
+            _ => Err(HandleError::NotFound),
         }
     }
-
 }
 
+#[derive(Clone)]
 pub struct Game {
     term: Term,
     command_buffer: String,
@@ -59,11 +60,10 @@ pub struct Game {
     cursor_offset: u16,
     scroll_offset: u16,
     event: Option<Event>,
-    root: Value
+    root: Root,
 }
 
 impl Game {
-
     pub fn new() -> io::Result<Self> {
         Ok(Self {
             term: Term::new()?,
@@ -72,7 +72,7 @@ impl Game {
             cursor_offset: 0,
             scroll_offset: 0,
             event: None,
-            root: Value::create_root()
+            root: Root::new(),
         })
     }
 
@@ -87,8 +87,9 @@ impl Game {
         let height = size().expect("Failed to get terminal size").1 - 2;
         if self.line_buffer.len() <= height as usize {
             self.scroll_offset = 0;
-        }else {
-            self.scroll_offset = cmp::min(self.scroll_offset, self.line_buffer.len() as u16 - height);
+        } else {
+            self.scroll_offset =
+                cmp::min(self.scroll_offset, self.line_buffer.len() as u16 - height);
         }
     }
 
@@ -110,21 +111,26 @@ impl Game {
         if !char.is_ascii() {
             return;
         }
-        self.command_buffer.insert(self.command_buffer.len() - self.cursor_offset as usize, char);
+        self.command_buffer.insert(
+            self.command_buffer.len() - self.cursor_offset as usize,
+            char,
+        );
     }
 
     fn remove_char_before(&mut self) {
         if self.command_buffer.len() - self.cursor_offset as usize == 0 {
             return;
         }
-        self.command_buffer.remove(self.command_buffer.len() - self.cursor_offset as usize - 1);
+        self.command_buffer
+            .remove(self.command_buffer.len() - self.cursor_offset as usize - 1);
     }
 
     fn remove_char_at(&mut self) {
         if self.cursor_offset == 0 {
             return;
         }
-        self.command_buffer.remove(self.command_buffer.len() - self.cursor_offset as usize);
+        self.command_buffer
+            .remove(self.command_buffer.len() - self.cursor_offset as usize);
         self.cursor_offset -= 1;
     }
 
@@ -152,8 +158,8 @@ impl Game {
         };
 
         self.line_buffer.push(format!("{:?}", instruction));
-        self.line_buffer.push(format!("{:?}", self.root.handle(instruction)));
-        
+        let result = self.root.handle(instruction);
+        self.line_buffer.push(format!("{:?}", result));
     }
 
     pub fn update(&mut self) -> io::Result<bool> {
@@ -168,23 +174,29 @@ impl Game {
                 KeyCode::Backspace => self.remove_char_before(),
                 KeyCode::Delete => self.remove_char_at(),
                 KeyCode::Enter => self.submit_command(),
-                _ => ()
+                _ => (),
             },
             Some(Event::Mouse(MouseEvent { kind, .. })) => match kind {
                 MouseEventKind::ScrollUp => self.scroll_up(),
                 MouseEventKind::ScrollDown => self.scroll_down(),
-                _ => ()
+                _ => (),
             },
-            _ => ()
+            _ => (),
         }
 
         Ok(false)
     }
 
+    pub fn fixed_update(&mut self) -> io::Result<()> {
+        self.line_buffer.push("X seconds".to_string());
+        Ok(())
+    }
+
     pub fn draw(&mut self) -> io::Result<()> {
         self.term.clear()?;
 
-        for (idx, line) in self.line_buffer
+        for (idx, line) in self
+            .line_buffer
             .iter()
             .rev()
             .skip(self.scroll_offset as usize)
@@ -192,7 +204,8 @@ impl Game {
             .rev()
             .enumerate()
         {
-            self.term.print_wrap(&line, 0, idx as u16, size()?.0, WrapMode::Normal)?;
+            self.term
+                .print_wrap(&line, 0, idx as u16, size()?.0, WrapMode::Normal)?;
         }
 
         /*
@@ -203,11 +216,14 @@ impl Game {
         }
         */
 
-        self.term.line('-', 0, size()?.1 - 2, size()?.0, false)?
+        self.term
+            .line('-', 0, size()?.1 - 2, size()?.0, false)?
             .print(&format!("~ {}", self.command_buffer), 0, size()?.1 - 1)?
-            .move_cursor(2 + self.command_buffer.len() as u16 - self.cursor_offset, size()?.1 - 1)?
+            .move_cursor(
+                2 + self.command_buffer.len() as u16 - self.cursor_offset,
+                size()?.1 - 1,
+            )?
             .flush()?;
         Ok(())
     }
-
 }
