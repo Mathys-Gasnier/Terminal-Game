@@ -4,7 +4,7 @@ use crate::lexer::Token;
 
 #[derive(Debug)]
 pub enum Arg {
-    Int(i32),
+    Int(i64),
 }
 
 #[derive(Debug)]

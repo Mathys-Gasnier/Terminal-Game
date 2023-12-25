@@ -4,6 +4,7 @@ use std::{
 };
 
 mod game;
+mod game_object;
 mod lexer;
 mod parser;
 mod term;

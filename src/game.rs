@@ -1,60 +1,38 @@
 use crate::{
+    game_object::{GameObject, HandleError, Value},
     lexer::Lexer,
-    parser::{Instruction, Parser},
+    parser::{Arg, Instruction, Parser},
     term::{Term, WrapMode},
 };
 use crossterm::{
     event::{Event, KeyCode, KeyEvent, MouseEvent, MouseEventKind},
     terminal::size,
 };
-use std::{cmp, fmt::Display, io};
+use serde::{Deserialize, Serialize};
+use std::{cmp, fs, io};
 
-#[derive(Debug, Clone)]
-pub enum HandleError {
-    WrongArgType(String, String),
-    NotFound(String),
-}
-
-impl Display for HandleError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::WrongArgType(expected, got) => {
-                write!(f, "Expected argument of type '{}' got '{}'", expected, got)
-            }
-            Self::NotFound(str) => write!(f, "{}", str),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum Value {
-    Null,
-    IntValue(i64),
-    BoolValue(bool),
-}
-
-impl Display for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Null => write!(f, "Null"),
-            Self::IntValue(int) => write!(f, "{}", int),
-            Self::BoolValue(bool) => write!(f, "{}", bool),
-        }
-    }
-}
-
-trait GameObject {
-    fn handle(&mut self, instruction: Instruction) -> Result<Value, HandleError>;
-}
-
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Root {
     coins: i64,
 }
 
 impl Root {
     fn new() -> Self {
-        Self { coins: 0 }
+        let save = match fs::read_to_string("game.save") {
+            Ok(ok) => ok,
+            Err(err) => {
+                println!("Failed to load game save {}, exiting", err);
+                panic!();
+            }
+        };
+        let root = match serde_json::from_str::<Root>(&save) {
+            Ok(ok) => ok,
+            Err(err) => {
+                println!("Failed to load game save {}, exiting", err);
+                panic!();
+            }
+        };
+        root
     }
 }
 
@@ -64,11 +42,29 @@ impl GameObject for Root {
             Instruction::Access(key, _) if key == "coins".to_string() => {
                 Ok(Value::IntValue(self.coins))
             }
-            Instruction::FunctionCall(name, _) if name == "add".to_string() => {
-                self.coins += 1;
+            Instruction::FunctionCall(name, args) if name == "add".to_string() => {
+                let Some(Arg::Int(amount)) = args.get(0) else {
+                    return Err(HandleError::WrongArgType("Int".to_string(), 0));
+                };
+                self.coins += amount;
                 Ok(Value::IntValue(self.coins))
             }
-            _ => Err(HandleError::NotFound(format!("Did not find on Root"))),
+            _ => self.return_err("Root".to_string(), instruction),
+        }
+    }
+}
+
+impl Drop for Root {
+    fn drop(&mut self) {
+        let json = match serde_json::to_string(self) {
+            Ok(ok) => ok,
+            Err(err) => {
+                println!("Failed to save game root: {}", err);
+                return;
+            }
+        };
+        if let Err(err) = fs::write("game.save", json) {
+            println!("Failed to save game root to file: {}", err);
         }
     }
 }
