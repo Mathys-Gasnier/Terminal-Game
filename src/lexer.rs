@@ -13,12 +13,12 @@ pub enum Token {
 impl Token {
     pub fn text(&self) -> String {
         match self {
-            Token::Keyword(keyword) => keyword.clone(),
-            Token::Int(int) => int.to_string(),
-            Token::OpenParen => "(".to_string(),
-            Token::CloseParen => ")".to_string(),
-            Token::Dot => ".".to_string(),
-            Token::Coma => ",".to_string(),
+            Self::Keyword(keyword) => keyword.clone(),
+            Self::Int(int) => int.to_string(),
+            Self::OpenParen => "(".to_string(),
+            Self::CloseParen => ")".to_string(),
+            Self::Dot => ".".to_string(),
+            Self::Coma => ",".to_string(),
         }
     }
 }
@@ -32,8 +32,8 @@ pub enum LexerError {
 impl Display for LexerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LexerError::Unknown(idx, char) => write!(f, "Unexpected char '{}' at {}", char, idx),
-            LexerError::NumberParseError(idx, number) => {
+            Self::Unknown(idx, char) => write!(f, "Unexpected char '{}' at {}", char, idx),
+            Self::NumberParseError(idx, number) => {
                 write!(f, "Number '{}' failed to parse at {}", number, idx)
             }
         }
@@ -47,7 +47,7 @@ pub struct Lexer {
 
 impl Lexer {
     pub fn tokenize(source: &str) -> Result<Vec<Token>, LexerError> {
-        let mut lexer = Lexer {
+        let mut lexer = Self {
             source: source.to_string(),
             pointer: 0,
         };

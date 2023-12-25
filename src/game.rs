@@ -25,7 +25,7 @@ impl Root {
                 panic!();
             }
         };
-        let root = match serde_json::from_str::<Root>(&save) {
+        let root = match serde_json::from_str::<Self>(&save) {
             Ok(ok) => ok,
             Err(err) => {
                 println!("Failed to load game save {}, exiting", err);

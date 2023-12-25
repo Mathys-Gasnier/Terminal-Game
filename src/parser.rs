@@ -23,15 +23,15 @@ pub enum ParserError {
 impl Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParserError::ExpectedToken => write!(f, "Expected a token but found none"),
-            ParserError::UnexpectedToken(token) => write!(
+            Self::ExpectedToken => write!(f, "Expected a token but found none"),
+            Self::UnexpectedToken(token) => write!(
                 f,
                 "Unexpected token {}",
                 token
                     .clone()
                     .map_or("none".to_string(), |token| format!("'{}'", token.text()))
             ),
-            ParserError::Expected(expected, got) => write!(
+            Self::Expected(expected, got) => write!(
                 f,
                 "Expected '{}' but got {}",
                 expected.text(),
@@ -49,7 +49,7 @@ pub struct Parser {
 
 impl Parser {
     pub fn parse(tokens: Vec<Token>) -> Result<Instruction, ParserError> {
-        let mut parser = Parser { tokens, pointer: 0 };
+        let mut parser = Self { tokens, pointer: 0 };
 
         parser.parse_instruction()
     }
